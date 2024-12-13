@@ -3,6 +3,8 @@
 ## Overview
 This application uses Streamlit to compare YouTube videos by fetching transcripts, summarizing content, and generating comparison tables. It leverages **Google's Gemini AI** for content generation.
 
+Original Idea and Collaborator - (Isha Shukla)[https://github.com/isha1225]
+
 ---
 
 ## Features
