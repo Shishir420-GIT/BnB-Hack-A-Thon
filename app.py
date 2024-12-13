@@ -2,10 +2,14 @@ import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 import google.generativeai as genai
+from google.cloud import firestore
 from dotenv import load_dotenv
 import os
 
 load_dotenv() # Load environment variables
+
+# Initialize Firestore client
+firestore_client = firestore.Client.from_service_account_json("reviewz_firebase_key.json")
 
 def get_youtube_transcript(video_url):
     """Fetches the transcript of a YouTube video given its URL."""
@@ -92,6 +96,68 @@ def generate_csv(transcript1, transcript2, model):
     return response.text
 
 
+def generate_csv_to_markdown(data, model):
+    """Generates a CSV-formatted string comparing two transcripts using Gemini AI."""
+    model = genai.GenerativeModel(model)
+
+    prompt = f"""
+    You are a Technical Blogger specializing in smartphone specifications. Analyze the following and prepare a comparison table.
+
+    Data:
+    {data}
+
+    Ensure:
+    - Include numeric specifications (e.g., screen size, resolution, camera megapixels, battery capacity).
+    - Include qualitative attributes (e.g., build quality, user experience, durability).
+    - No additional text or commentary—return only valid CSV data.
+
+    Output Example:
+    "Feature","Phone 1","Phone 2"
+    "Screen Size","6.1 inches","6.5 inches"
+    "Battery","4000 mAh","4500 mAh"
+    """
+    prompt2 = f"""
+    You are a Technical Blogger specializing in smartphone specifications. Your task is to analyze the given data and prepare a **comparison table** in CSV format.
+
+    Data:
+    {data}
+
+    **Requirements**:
+    1. Include **numeric specifications** (e.g., screen size, resolution, camera megapixels, battery capacity).
+    2. Include **qualitative attributes** (e.g., build quality, user experience, durability).
+    3. Do **not** add any text, commentary, or explanation outside the table.
+    4. Ensure the data is accurate and well-structured as valid CSV.
+
+    **Output Format**:
+    Here is the data formatted as a well-spaced table for better readability:
+
+    Feature	       |    Phone 1	          |   Phone 2
+    Screen Size    |  6.1 inches	      |  6.5 inches
+    Battery	       |    4000 mAh	      |   4500 mAh
+    Build Quality  |	   Aluminum	      |   Plastic
+    User Experience|	  Smooth and fast |	Feature-rich but laggy
+
+    """
+
+    response = model.generate_content(prompt2)
+    return response.text
+
+def store_csv_in_firestore(csv_data):
+    """Stores the generated CSV data in Firestore."""
+    doc_ref = firestore_client.collection("comparisons").document("last_comparison")
+    doc_ref.set({"csv_data": csv_data})
+
+
+def get_last_csv_from_firestore(model):
+    """Fetches the last stored CSV data from Firestore."""
+    doc_ref = firestore_client.collection("comparisons").document("last_comparison")
+    doc = doc_ref.get()
+    if doc.exists:
+        data_in_md = doc.to_dict().get("csv_data")
+        return generate_csv_to_markdown(data_in_md, model)
+    return "No data found."
+
+
 if __name__ == "__main__":
     genai.configure(api_key=os.getenv("API_KEY"))
 
@@ -127,7 +193,7 @@ if __name__ == "__main__":
             with st.spinner("### Summarizing video 2"):
                 st.write("### Summary of Video 2")
                 st.markdown(generate_summary(transcript2, selected_model), unsafe_allow_html=True)
-
+        
         st.header("Comparison Section", divider="rainbow")
         with st.spinner("Generating Comparison..."):
             comparison_result = generate_comparison(transcript1, transcript2, selected_model)
@@ -138,7 +204,9 @@ if __name__ == "__main__":
             st.error("No comparison data found!")
         else:
             if "csv_data" not in st.session_state:
-                st.session_state.csv_data = generate_csv(transcript1, transcript2, selected_model)
+                csv_data = generate_csv(transcript1, transcript2, selected_model)
+                st.session_state.csv_data = "\n".join(csv_data.split("\n")[1:])
+            store_csv_in_firestore(csv_data)
 
             st.download_button(
                 label="Download as CSV",
@@ -146,6 +214,12 @@ if __name__ == "__main__":
                 file_name="comparison_table.csv",
                 mime="text/csv"
             )
+
+    # Button to display last comparison
+    if st.sidebar.button("Show Last Comparison"):
+        last_csv = get_last_csv_from_firestore(selected_model)
+        st.write("### Previous Comparison")
+        st.markdown(last_csv, unsafe_allow_html=True)
 
     #st.session_state["show_video"] = True
     st.header("@BnB Hack-a-thon", divider="rainbow")

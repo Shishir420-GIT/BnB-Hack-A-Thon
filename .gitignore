@@ -129,6 +129,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+reviewz_firebase_key.json
 
 # Spyder project settings
 .spyderproject

@@ -7,6 +7,8 @@ Original Idea and Collaborator - [Isha Shukla](https://github.com/isha1225)
 
 ![image](https://github.com/user-attachments/assets/2dace121-001f-4186-ab43-69a4d4a97b13)
 
+(Medium Blog URL)[https://medium.com/@isha.shukla25/4e748f6b8071]
+(Hashnode Blog URL)
 ---
 
 ## Features
